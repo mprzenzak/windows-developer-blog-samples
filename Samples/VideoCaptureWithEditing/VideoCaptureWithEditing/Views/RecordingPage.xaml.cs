@@ -142,11 +142,9 @@ namespace VideoCaptureWithEditing.Views
                     else
                     {
                         externalCamera = false;
-
                         // W przypadku gdy używana jest przednia kamera, należy włączyć lustrzane odbicie
                         mirroringPreview = (cameraDevice.EnclosureLocation.Panel == Windows.Devices.Enumeration.Panel.Front);
                     }
-
                     // Inicjalizacja klasy odpowiadającej za odpowiednie ustawienie orientacji kamery
                     rotationHelper = new CameraRotationHelper(cameraDevice.EnclosureLocation);
                     rotationHelper.OrientationChanged += RotationHelper_OrientationChanged;
