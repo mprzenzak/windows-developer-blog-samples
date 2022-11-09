@@ -101,17 +101,15 @@ namespace VideoCaptureWithEditing.Views
 
         #region MediaCapture methods
 
-        /// <summary>
-        /// Initializes the MediaCapture, registers events, gets camera device information for mirroring and rotating, starts preview and unlocks the UI
-        /// </summary>
-        /// <returns></returns>
+
+        // Inicjalizacja klasy Mediacapture oraz pobieranie informacji o lustrzanym odbiciu i obrocie orientacji kamery (jeżeli obsługuje to kamera)
         private async Task InitializeCameraAsync()
         {
             Debug.WriteLine("InitializeCameraAsync");
 
             if (mediaCapture == null)
             {
-                // Attempt to get the back camera if one is available, but use any camera device if not
+                // Wybiera tylną kamerę urządzenia, jeżeli nie jest dostępna to bierze domyślną
                 var cameraDevice = await FindCameraDeviceByPanelAsync(Windows.Devices.Enumeration.Panel.Back);
 
                 if (cameraDevice == null)
@@ -120,16 +118,11 @@ namespace VideoCaptureWithEditing.Views
                     return;
                 }
 
-                // Create MediaCapture and its settings
                 mediaCapture = new MediaCapture();
-
-                // Register for a notification when video recording has reached the maximum time and when something goes wrong
-                mediaCapture.RecordLimitationExceeded += MediaCapture_RecordLimitationExceeded;
-                mediaCapture.Failed += MediaCapture_Failed;
 
                 var settings = new MediaCaptureInitializationSettings { VideoDeviceId = cameraDevice.Id };
 
-                // Initialize MediaCapture
+                // Przypisanie kamery do naszego obiektu mediaCapture
                 try
                 {
                     await mediaCapture.InitializeAsync(settings);
@@ -140,25 +133,21 @@ namespace VideoCaptureWithEditing.Views
                     Debug.WriteLine("The app was denied access to the camera");
                 }
 
-                // If initialization succeeded, start the preview
                 if (isInitialized)
                 {
-                    // Figure out where the camera is located
                     if (cameraDevice.EnclosureLocation == null || cameraDevice.EnclosureLocation.Panel == Windows.Devices.Enumeration.Panel.Unknown)
                     {
-                        // No information on the location of the camera, assume it's an external camera, not integrated on the device
                         externalCamera = true;
                     }
                     else
                     {
-                        // Camera is fixed on the device
                         externalCamera = false;
 
-                        // Only mirror the preview if the camera is on the front panel
+                        // W przypadku gdy używana jest przednia kamera, należy włączyć lustrzane odbicie
                         mirroringPreview = (cameraDevice.EnclosureLocation.Panel == Windows.Devices.Enumeration.Panel.Front);
                     }
 
-                    // Initialize rotationHelper
+                    // Inicjalizacja klasy odpowiadającej za odpowiednie ustawienie orientacji kamery
                     rotationHelper = new CameraRotationHelper(cameraDevice.EnclosureLocation);
                     rotationHelper.OrientationChanged += RotationHelper_OrientationChanged;
 
@@ -255,56 +244,19 @@ namespace VideoCaptureWithEditing.Views
             });
         }
 
-        /// <summary>
-        /// Records an MP4 video to a StorageFile and adds rotation metadata to it
-        /// </summary>
-        /// <returns></returns>
-        private async Task StartRecordingAsync()
+        private async Task StartVideoRecordingAsync()
         {
             try
             {
-                //TODO
-                var lowLagCapture = await mediaCapture.PrepareLowLagPhotoCaptureAsync(ImageEncodingProperties.CreateUncompressed(MediaPixelFormat.Bgra8));
 
-                var capturedPhoto = await lowLagCapture.CaptureAsync();
-                var softwareBitmap = capturedPhoto.Frame.SoftwareBitmap;
-
-                await lowLagCapture.FinishAsync();
-
-                var myPictures = await Windows.Storage.StorageLibrary.GetLibraryAsync(Windows.Storage.KnownLibraryId.Pictures);
-                StorageFile file = await myPictures.SaveFolder.CreateFileAsync("photo.jpg", CreationCollisionOption.GenerateUniqueName);
-
-                using (var captureStream = new InMemoryRandomAccessStream())
-                {
-                    await mediaCapture.CapturePhotoToStreamAsync(ImageEncodingProperties.CreateJpeg(), captureStream);
-
-                    using (var fileStream = await file.OpenAsync(FileAccessMode.ReadWrite))
-                    {
-                        var decoder = await BitmapDecoder.CreateAsync(captureStream);
-                        var encoder = await BitmapEncoder.CreateForTranscodingAsync(fileStream, decoder);
-
-                        var properties = new BitmapPropertySet {
-            { "System.Photo.Orientation", new BitmapTypedValue(PhotoOrientation.Normal, PropertyType.UInt16) }
-        };
-                        await encoder.BitmapProperties.SetPropertiesAsync(properties);
-
-                        await encoder.FlushAsync();
-
-                    }
-                }
-                /////////////////////////////////////////////////////////
-
-                // Create storage file for the capture
+                // Tworzenie pliku, w którym zostanie zapisany film
                 var videoFile = await localFolder.CreateFileAsync($"Video.mp4", CreationCollisionOption.GenerateUniqueName);
 
                 var encodingProfile = MediaEncodingProfile.CreateMp4(VideoEncodingQuality.Auto);
 
-                // Calculate rotation angle, taking mirroring into account if necessary
-                var rotationAngle = CameraRotationHelper.ConvertSimpleOrientationToClockwiseDegrees(rotationHelper.GetCameraCaptureOrientation());
-                encodingProfile?.Video?.Properties.Add(RotationKey, PropertyValue.CreateInt32(rotationAngle));
-
                 Debug.WriteLine("Starting recording to " + videoFile.Path);
 
+                // Przechwycanie obrazu video przy użyciu metody zapewnionej przez bibliotekę
                 await mediaCapture.StartRecordToStorageFileAsync(encodingProfile, videoFile);
 
                 isRecording = true;
@@ -313,7 +265,6 @@ namespace VideoCaptureWithEditing.Views
             }
             catch (Exception ex)
             {
-                // File I/O errors are reported as exceptions
                 Debug.WriteLine("Exception when starting video recording: " + ex.ToString());
             }
         }
@@ -322,7 +273,6 @@ namespace VideoCaptureWithEditing.Views
         {
             try
             {
-                //test
                 var lowLagCapture = await mediaCapture.PrepareLowLagPhotoCaptureAsync(ImageEncodingProperties.CreateUncompressed(MediaPixelFormat.Bgra8));
 
                 var capturedPhoto = await lowLagCapture.CaptureAsync();
@@ -330,31 +280,34 @@ namespace VideoCaptureWithEditing.Views
 
                 await lowLagCapture.FinishAsync();
 
+                var myPictures = await Windows.Storage.StorageLibrary.GetLibraryAsync(Windows.Storage.KnownLibraryId.Pictures);
+                
+                // Tworzenie pliku, w którym zostanie zapisane zdjęcie
+                StorageFile file = await myPictures.SaveFolder.CreateFileAsync("photo.jpg", CreationCollisionOption.GenerateUniqueName);
 
+                // Tworzenie strumienia danych na obraz
+                using (var captureStream = new InMemoryRandomAccessStream())
+                {
+                    // Zapisywanie zdjęcia ze strumienia danych
+                    await mediaCapture.CapturePhotoToStreamAsync(ImageEncodingProperties.CreateJpeg(), captureStream);
 
+                    using (var fileStream = await file.OpenAsync(FileAccessMode.ReadWrite))
+                    {
+                        var decoder = await BitmapDecoder.CreateAsync(captureStream);
+                        var encoder = await BitmapEncoder.CreateForTranscodingAsync(fileStream, decoder);
 
+                        var properties = new BitmapPropertySet {
+                            { "System.Photo.Orientation", new BitmapTypedValue(PhotoOrientation.Normal, PropertyType.UInt16) }
+                        };
+                        await encoder.BitmapProperties.SetPropertiesAsync(properties);
 
-                // Create storage file for the capture
-                var photoFile = await localFolder.CreateFileAsync($"Photo.jpeg", CreationCollisionOption.GenerateUniqueName);
-
-                //var encodingProfile = MediaEncodingProfile.create.CreateMp4(VideoEncodingQuality.Auto);
-
-                // Calculate rotation angle, taking mirroring into account if necessary
-                var rotationAngle = CameraRotationHelper.ConvertSimpleOrientationToClockwiseDegrees(rotationHelper.GetCameraCaptureOrientation());
-                //encodingProfile?.Video?.Properties.Add(RotationKey, PropertyValue.CreateInt32(rotationAngle));
-
-                Debug.WriteLine("Starting recording to " + photoFile.Path);
-
-                //await mediaCapture.StartRecordToStorageFileAsync(encodingProfile, videoFile);
-
-                isRecording = true;
-
-                Debug.WriteLine("Photo captured!");
+                        await encoder.FlushAsync();
+                    }
+                }
             }
             catch (Exception ex)
             {
-                // File I/O errors are reported as exceptions
-                Debug.WriteLine("Exception when capturing photo: " + ex.ToString());
+                Debug.WriteLine("Exception when starting video recording: " + ex.ToString());
             }
         }
 
@@ -551,21 +504,23 @@ namespace VideoCaptureWithEditing.Views
 
         #region Event handlers
 
+        // Trigger rozpoczynający nagrywanie
         private async void VideoButton_Click(object sender, RoutedEventArgs e)
         {
             if (!isRecording)
             {
-                await StartRecordingAsync();
+                await StartVideoRecordingAsync();
             }
             else
             {
                 await StopRecordingAsync();
             }
 
-            // After starting or stopping video recording, update the UI to reflect the MediaCapture state
+            // Aktualizacja UI
             UpdateCaptureControls();
         }
 
+        // Trigger rozpoczynający robienie zdjęcia
         private async void PhotoButton_Click(object sender, RoutedEventArgs e)
         {
             if (!isRecording)
@@ -573,12 +528,6 @@ namespace VideoCaptureWithEditing.Views
                 await StartPhotoCapturingAsync();
 
             }
-            //else
-            //{
-            //    await StopRecordingAsync();
-            //}
-
-            // After starting or stopping video recording, update the UI to reflect the MediaCapture state
             UpdateCaptureControls();
         }
 
