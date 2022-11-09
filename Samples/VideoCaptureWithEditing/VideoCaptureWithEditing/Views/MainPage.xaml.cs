@@ -117,6 +117,11 @@ namespace VideoCaptureWithEditing.Views
             Frame.Navigate(typeof(RecordingPage));
         }
 
+        private void CapturePhotoButton_OnClick(object sender, RoutedEventArgs e)
+        {
+            Frame.Navigate(typeof(RecordingPage));
+        }
+
         private void EditVideoButton_OnClick(object sender, RoutedEventArgs e)
         {
             if (selectedVideoFile != null)

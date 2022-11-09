@@ -54,6 +54,10 @@
                           Icon="Add"
                           Label="new video"
                           Click="RecordVideoButton_OnClick" />
+            <AppBarButton x:Name="CapturePhotoButton"
+                          Icon="Add"
+                          Label="new photo"
+                          Click="CapturePhotoButton_OnClick" />
         </CommandBar>
     </Grid>
 </Page>

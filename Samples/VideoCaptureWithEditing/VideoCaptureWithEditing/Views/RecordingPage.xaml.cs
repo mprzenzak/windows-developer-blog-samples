@@ -44,6 +44,9 @@ using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
 using VideoCaptureWithEditing.Common;
+using Windows.Graphics.Imaging;
+using Windows.Storage.Streams;
+using Windows.Storage.FileProperties;
 
 namespace VideoCaptureWithEditing.Views
 {
@@ -95,7 +98,7 @@ namespace VideoCaptureWithEditing.Views
 
             NavigationCacheMode = NavigationCacheMode.Disabled;
         }
-        
+
         #region MediaCapture methods
 
         /// <summary>
@@ -251,7 +254,7 @@ namespace VideoCaptureWithEditing.Views
                 displayRequest.RequestRelease();
             });
         }
-        
+
         /// <summary>
         /// Records an MP4 video to a StorageFile and adds rotation metadata to it
         /// </summary>
@@ -260,6 +263,36 @@ namespace VideoCaptureWithEditing.Views
         {
             try
             {
+                //TODO
+                var lowLagCapture = await mediaCapture.PrepareLowLagPhotoCaptureAsync(ImageEncodingProperties.CreateUncompressed(MediaPixelFormat.Bgra8));
+
+                var capturedPhoto = await lowLagCapture.CaptureAsync();
+                var softwareBitmap = capturedPhoto.Frame.SoftwareBitmap;
+
+                await lowLagCapture.FinishAsync();
+
+                var myPictures = await Windows.Storage.StorageLibrary.GetLibraryAsync(Windows.Storage.KnownLibraryId.Pictures);
+                StorageFile file = await myPictures.SaveFolder.CreateFileAsync("photo.jpg", CreationCollisionOption.GenerateUniqueName);
+
+                using (var captureStream = new InMemoryRandomAccessStream())
+                {
+                    await mediaCapture.CapturePhotoToStreamAsync(ImageEncodingProperties.CreateJpeg(), captureStream);
+
+                    using (var fileStream = await file.OpenAsync(FileAccessMode.ReadWrite))
+                    {
+                        var decoder = await BitmapDecoder.CreateAsync(captureStream);
+                        var encoder = await BitmapEncoder.CreateForTranscodingAsync(fileStream, decoder);
+
+                        var properties = new BitmapPropertySet {
+            { "System.Photo.Orientation", new BitmapTypedValue(PhotoOrientation.Normal, PropertyType.UInt16) }
+        };
+                        await encoder.BitmapProperties.SetPropertiesAsync(properties);
+
+                        await encoder.FlushAsync();
+
+                    }
+                }
+                /////////////////////////////////////////////////////////
 
                 // Create storage file for the capture
                 var videoFile = await localFolder.CreateFileAsync($"Video.mp4", CreationCollisionOption.GenerateUniqueName);
@@ -285,6 +318,46 @@ namespace VideoCaptureWithEditing.Views
             }
         }
 
+        private async Task StartPhotoCapturingAsync()
+        {
+            try
+            {
+                //test
+                var lowLagCapture = await mediaCapture.PrepareLowLagPhotoCaptureAsync(ImageEncodingProperties.CreateUncompressed(MediaPixelFormat.Bgra8));
+
+                var capturedPhoto = await lowLagCapture.CaptureAsync();
+                var softwareBitmap = capturedPhoto.Frame.SoftwareBitmap;
+
+                await lowLagCapture.FinishAsync();
+
+
+
+
+
+                // Create storage file for the capture
+                var photoFile = await localFolder.CreateFileAsync($"Photo.jpeg", CreationCollisionOption.GenerateUniqueName);
+
+                //var encodingProfile = MediaEncodingProfile.create.CreateMp4(VideoEncodingQuality.Auto);
+
+                // Calculate rotation angle, taking mirroring into account if necessary
+                var rotationAngle = CameraRotationHelper.ConvertSimpleOrientationToClockwiseDegrees(rotationHelper.GetCameraCaptureOrientation());
+                //encodingProfile?.Video?.Properties.Add(RotationKey, PropertyValue.CreateInt32(rotationAngle));
+
+                Debug.WriteLine("Starting recording to " + photoFile.Path);
+
+                //await mediaCapture.StartRecordToStorageFileAsync(encodingProfile, videoFile);
+
+                isRecording = true;
+
+                Debug.WriteLine("Photo captured!");
+            }
+            catch (Exception ex)
+            {
+                // File I/O errors are reported as exceptions
+                Debug.WriteLine("Exception when capturing photo: " + ex.ToString());
+            }
+        }
+
         /// <summary>
         /// Stops recording a video
         /// </summary>
@@ -299,7 +372,7 @@ namespace VideoCaptureWithEditing.Views
 
             Debug.WriteLine("Stopped recording!");
 
-            if(Frame.CanGoBack)
+            if (Frame.CanGoBack)
                 Frame.GoBack();
         }
 
@@ -345,8 +418,8 @@ namespace VideoCaptureWithEditing.Views
             }
         }
 
-        #endregion 
-        
+        #endregion
+
         #region Helper functions
 
         /// <summary>
@@ -399,7 +472,7 @@ namespace VideoCaptureWithEditing.Views
         {
             // Attempt to lock page to landscape orientation to prevent the CaptureElement from rotating, as this gives a better experience
             DisplayInformation.AutoRotationPreferences = DisplayOrientations.Landscape;
-            
+
             // Hide the status bar (NOTE: Be sure to add reference to 'Windows Mobile Extensions for the UWP')
             if (ApiInformation.IsTypePresent("Windows.UI.ViewManagement.StatusBar"))
             {
@@ -407,7 +480,7 @@ namespace VideoCaptureWithEditing.Views
             }
 
             RegisterEventHandlers();
-            
+
         }
 
         /// <summary>
@@ -492,6 +565,23 @@ namespace VideoCaptureWithEditing.Views
             // After starting or stopping video recording, update the UI to reflect the MediaCapture state
             UpdateCaptureControls();
         }
+
+        private async void PhotoButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!isRecording)
+            {
+                await StartPhotoCapturingAsync();
+
+            }
+            //else
+            //{
+            //    await StopRecordingAsync();
+            //}
+
+            // After starting or stopping video recording, update the UI to reflect the MediaCapture state
+            UpdateCaptureControls();
+        }
+
 
         private async void Window_VisibilityChanged(object sender, VisibilityChangedEventArgs args)
         {

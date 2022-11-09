@@ -20,12 +20,28 @@
                     Click="VideoButton_Click"
                     Style="{StaticResource RecordingButtonStyle}">
                 <Grid>
-                    <Ellipse x:Name="StartRecordingIcon"
+                    <Ellipse x:Name="StartRecordingIcon2"
                              Fill="Red"
                              Width="20"
                              Height="20" />
-                    <Rectangle x:Name="StopRecordingIcon"
+                    <Rectangle x:Name="StopRecordingIcon2"
                                Fill="White"
+                               Width="20"
+                               Height="20"
+                               Visibility="Collapsed" />
+                </Grid>
+            </Button>
+            <Button Name="PhotoButton"
+                    IsEnabled="False"
+                    Click="PhotoButton_Click"
+                    Style="{StaticResource RecordingButtonStyle}">
+                <Grid>
+                    <Ellipse x:Name="StartRecordingIcon"
+                             Fill="Yellow"
+                             Width="20"
+                             Height="20" />
+                    <Rectangle x:Name="StopRecordingIcon"
+                               Fill="Green"
                                Width="20"
                                Height="20"
                                Visibility="Collapsed" />
